@@ -16,8 +16,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
-        item.menu = menu
-        item.button?.setAccessibilityLabel("BatteryTray")
+        if let button = item.button {
+            button.setAccessibilityLabel("BatteryTray")
+            button.target = self
+            button.action = #selector(clicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
         item.behavior = []
         item.isVisible = true
         item.button?.imagePosition = .imageOnly
@@ -28,10 +32,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Where the item is on the screen: the device window opens under it.
-    var buttonFrame: NSRect? {
-        guard let button = item.button, let window = button.window else { return nil }
-        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    var button: NSStatusBarButton? {
+        item.button
     }
 
     func update(_ tray: Tray?) {
@@ -51,6 +53,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.button?.image = MenuBarLabel.image(shown ?? [])
     }
 
+    @objc private func clicked(_ sender: NSStatusBarButton) {
+        guard let app = AppDelegate.shared, !app.closeSettingsIfVisible() else { return }
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            showContextMenu()
+        } else {
+            app.toggleMain()
+        }
+    }
+
+    private func showContextMenu() {
+        AppDelegate.shared?.closeMain()
+        guard let button = item.button else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+    }
+
     /// Opens the menu and hands its window to `take` while it is open, then closes it (`--snapshot`).
     func snapshotMenu(_ take: @escaping (NSWindow?) -> Void) {
         let timer = Timer(timeInterval: 0.8, repeats: false) { [weak self] _ in
@@ -61,26 +79,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         // Menu tracking runs the event loop in its own mode
         RunLoop.main.add(timer, forMode: .common)
-        item.button?.performClick(nil)
+        showContextMenu()
     }
 
-    /// Built afresh each time it opens, in the current language and with the current levels.
+    /// Built afresh each time the right-click context menu opens, in the current language.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        let items = model.snapshot?.tray.items ?? []
-        if items.isEmpty {
-            let none = NSMenuItem(title: model.t("tray.nodata"), action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            menu.addItem(none)
-        }
-        for device in items {
-            let entry = NSMenuItem(title: device.name, action: #selector(open), keyEquivalent: "")
-            entry.target = self
-            entry.image = NSImage(systemSymbolName: symbol(device.kind), accessibilityDescription: nil)
-            entry.attributedTitle = title(device)
-            menu.addItem(entry)
-        }
-        menu.addItem(.separator())
         menu.addItem(command(model.t("tray.open"), #selector(open), ""))
         menu.addItem(command(model.t("settings") + "…", #selector(settings), ","))
         menu.addItem(command(model.t("refresh"), #selector(refresh), "r"))

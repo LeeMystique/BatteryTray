@@ -57,8 +57,9 @@ pub struct MainView {
 pub type DeviceLists = view::DeviceLists<DeviceItem>;
 
 impl MainView {
-    pub fn open(app: &App) -> Result<Self, slint::PlatformError> {
-        let ui = gui::create(Kind::Normal, MainWindow::new)?;
+    pub fn open(app: &App, owner: windows::Win32::Foundation::HWND) -> Result<Self, slint::PlatformError> {
+        let ui = gui::create(Kind::Panel(owner), MainWindow::new)?;
+        ui.set_animate_banners(false);
         gui::setup_texts(&ui.global::<gui::T>());
         gui::set_theme(&ui, theme::current().apps_light);
         let view = Self {
@@ -87,14 +88,6 @@ impl MainView {
         view.refresh(&app.rows(), &app.settings);
         view.refresh_update(&app.update_status());
 
-        // First shown in the bottom right corner, near the tray icon
-        let area = gui::primary_work_area();
-        let scale = unsafe { windows::Win32::UI::HiDpi::GetDpiForSystem() } as f32 / 96.0;
-        let (w, h) = ((440.0 + 16.0) * scale, (640.0 + 40.0) * scale);
-        view.ui.window().set_position(slint::PhysicalPosition::new(
-            area.right - w as i32 - (12.0 * scale) as i32,
-            area.bottom - h as i32 - (12.0 * scale) as i32,
-        ));
         Ok(view)
     }
 
@@ -114,6 +107,29 @@ impl MainView {
                 }
             });
         }
+    }
+
+    pub(crate) fn show(&self) {
+        let window = self.ui.window();
+        let first_show = !window.is_visible();
+        if first_show {
+            let (area, scale) = gui::primary_monitor();
+            let (w, h) = ((440.0 + 16.0) * scale, (self.ui.get_panel_height() + 40.0) * scale);
+            window.set_position(slint::PhysicalPosition::new(
+                area.right - w as i32 - (12.0 * scale) as i32,
+                (area.bottom - h as i32 - (12.0 * scale) as i32).max(area.top),
+            ));
+        }
+        gui::show_and_activate(&self.ui);
+        gui::fit_panel(window, self.ui.get_panel_height(), first_show);
+        self.ui.set_animate_banners(true);
+    }
+
+    /// Applies pending edits before hiding and releasing the panel. Call outside an app state borrow.
+    pub(crate) fn dismiss(ui: &MainWindow) {
+        ui.invoke_deactivated();
+        let _ = ui.hide();
+        with_app(|app| app.close_main());
     }
 
     /// Everything from the settings, as the window opens and after any change: the controls only ever show what the
@@ -491,11 +507,20 @@ fn connect(ui: &MainWindow) {
         let weak = weak.clone();
         slint::Timer::single_shot(Duration::ZERO, move || {
             if let Some(ui) = weak.upgrade() {
-                ui.invoke_deactivated();
+                MainView::dismiss(&ui);
             }
-            with_app(|a| a.close_main());
         });
-        slint::CloseRequestResponse::HideWindow
+        slint::CloseRequestResponse::KeepWindowShown
+    });
+
+    let weak = ui.as_weak();
+    ui.on_panel_height_changed(move || {
+        let weak = weak.clone();
+        slint::Timer::single_shot(Duration::ZERO, move || {
+            if let Some(ui) = weak.upgrade().filter(|ui| ui.window().is_visible()) {
+                gui::fit_panel(ui.window(), ui.get_panel_height(), false);
+            }
+        });
     });
 
     // What Slint has no window-wide hook for, taken from winit before Slint sees the event. Whatever it starts in

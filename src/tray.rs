@@ -53,6 +53,10 @@ impl Tray {
         tray
     }
 
+    pub(crate) fn window(&self) -> HWND {
+        self.hwnd
+    }
+
     fn data(&self) -> NOTIFYICONDATAW {
         let mut d = NOTIFYICONDATAW {
             cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,

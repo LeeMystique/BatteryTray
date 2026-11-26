@@ -11,9 +11,9 @@ import { SettingsScreen, GeneralPage, RemindersPage, OverlayPage } from "setting
 export component MainWindow inherits Window {
     title: T.t("app.title");
     preferred-width: 440px;
-    preferred-height: 640px;
+    preferred-height: root.panel-height;
     min-width: 400px;
-    min-height: 420px;
+    min-height: root.screen == 0 ? 0px : 420px;
     background: Palette.window;
     // Chinese in its own font: the fallback Windows picks for Han on a non-Chinese system is Japanese, which lacks
     // the simplified characters. Microsoft YaHei UI has Latin and Cyrillic too.
@@ -36,6 +36,7 @@ export component MainWindow inherits Window {
     in property <bool> autostart;
     in property <bool> autostart-banner-dismissed;
     in property <bool> admin-banner;
+    in property <bool> animate-banners: true;
 
     // Settings / General
     in property <string> language;
@@ -80,6 +81,10 @@ export component MainWindow inherits Window {
     in-out property <int> screen: 0;
     in-out property <int> settings-tab: 0;
     in-out property <bool> hidden-open: false;
+    // The device list can shrink to its contents and keeps its original viewport limit for long lists.
+    out property <length> panel-height: root.screen == 0 ? min(640px, devices.panel-height) : 640px;
+    callback panel-height-changed();
+    changed panel-height => { root.panel-height-changed(); }
     // The window that says what granting admin rights does, before Windows asks
     in-out property <bool> admin-dialog: false;
     // What Rust reads
@@ -337,6 +342,7 @@ export component MainWindow inherits Window {
                 banner-button-visible: root.banner-button-visible;
                 autostart-banner: !root.autostart && !root.autostart-banner-dismissed;
                 admin-banner: root.admin-banner;
+                animate-banners: root.animate-banners;
                 hidden-open <=> root.hidden-open;
                 refresh => { root.refresh(); }
                 open-settings => { root.open-settings(); }

@@ -54,9 +54,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.center()
     }
 
+    var isVisible: Bool {
+        window.isVisible
+    }
+
     func show() {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func close() {
+        window.close()
     }
 
     private func pageHeight(_ index: Int, _ height: CGFloat) {

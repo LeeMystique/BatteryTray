@@ -205,6 +205,21 @@ fn later(f: impl FnOnce(&mut App) + Send + 'static) {
     });
 }
 
+fn toggle_main() {
+    let panel = with_app(|app| {
+        if let Some(view) = &app.main {
+            return Some(view.ui.clone_strong());
+        }
+        app.open();
+        None
+    })
+    .flatten();
+    // Closing can apply edits through callbacks, so release the app state borrow first.
+    if let Some(ui) = panel {
+        MainView::dismiss(&ui);
+    }
+}
+
 /// The app's state, for code on the UI thread. None while it is busy further up the stack (a bug) or gone.
 pub fn with_app<R>(f: impl FnOnce(&mut App) -> R) -> Option<R> {
     APP.with(|cell| match cell.try_borrow_mut() {
@@ -386,7 +401,8 @@ impl App {
             return;
         }
         if self.main.is_none() {
-            match MainView::open(self) {
+            let Some(tray) = &self.tray else { return };
+            match MainView::open(self, tray.window()) {
                 Ok(view) => self.main = Some(view),
                 Err(e) => {
                     log::write(&format!("cannot open the window: {e}"));
@@ -402,7 +418,7 @@ impl App {
         // A name that was being typed is dropped with the rest, and the list may have held its device back
         self.refresh_main();
         if let Some(view) = &self.main {
-            gui::show_and_activate(&view.ui);
+            view.show();
         }
         self.sync_window_open();
     }
@@ -1057,7 +1073,9 @@ fn create_windows() -> windows::core::Result<(HWND, HWND)> {
 unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_APP_TRAY => match lparam.0 as u32 {
-            WM_LBUTTONUP => later(|app| app.open()),
+            WM_LBUTTONUP => {
+                let _ = slint::invoke_from_event_loop(toggle_main);
+            }
             WM_RBUTTONUP | WM_CONTEXTMENU => {
                 let chosen = tray::show_menu(hwnd);
                 later(move |app| match chosen {
