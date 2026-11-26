@@ -67,6 +67,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func showContextMenu() {
         AppDelegate.shared?.closeMain()
         guard let button = item.button else { return }
+        // The status button can inherit the menu bar's wallpaper-dependent appearance.
+        menu.appearance = NSApp.effectiveAppearance
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
     }
 
