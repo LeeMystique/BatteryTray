@@ -316,6 +316,15 @@ struct GeneralSettings: View {
                     } label: {
                         Label(model.t("menubar.devices"), systemImage: "menubar.rectangle")
                     }
+                    Picker(selection: Binding(get: { s.settings.trayPriority }, set: { model.set("tray_priority", $0) })) {
+                        Text(model.t("tray.priority.mouse")).tag("mouse")
+                        Text(model.t("tray.priority.keyboard")).tag("keyboard")
+                        Text(model.t("tray.priority.bluetooth")).tag("bluetooth")
+                        Text(model.t("tray.priority.headset")).tag("headset")
+                        Text(model.t("tray.priority.lowest")).tag("lowest")
+                    } label: {
+                        Label(model.t("tray.priority"), systemImage: "list.number")
+                    }
                     Toggle(isOn: Binding(get: { s.settings.hideOffline }, set: { model.set("hide_offline", $0) })) {
                         Label(model.t("hide.offline"), systemImage: "eye.slash")
                     }

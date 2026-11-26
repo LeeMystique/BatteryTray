@@ -41,6 +41,7 @@ export component MainWindow inherits Window {
     // Settings / General
     in property <string> language;
     in property <string> theme;
+    in property <string> tray-priority;
     in property <bool> hide-offline;
     in property <string> update-status;
     in property <string> update-checked-text;
@@ -99,6 +100,7 @@ export component MainWindow inherits Window {
     callback check-updates();
     callback language-chosen(language: string);
     callback theme-chosen(theme: string);
+    callback tray-priority-chosen(priority: string);
     callback hide-offline-changed(on: bool);
     callback test-alert();
     callback open-folder();
@@ -384,6 +386,7 @@ export component MainWindow inherits Window {
                     autostart: root.autostart;
                     language: root.language;
                     theme: root.theme;
+                    tray-priority: root.tray-priority;
                     hide-offline: root.hide-offline;
                     update-status: root.update-status;
                     update-checked-text: root.update-checked-text;
@@ -395,6 +398,7 @@ export component MainWindow inherits Window {
                     autostart-changed(on) => { root.autostart-changed(on); }
                     language-chosen(language) => { root.language-chosen(language); }
                     theme-chosen(theme) => { root.theme-chosen(theme); }
+                    tray-priority-chosen(priority) => { root.tray-priority-chosen(priority); }
                     hide-offline-changed(on) => { root.hide-offline-changed(on); }
                     install-update => { root.install-update(); }
                     check-updates => { root.check-updates(); }

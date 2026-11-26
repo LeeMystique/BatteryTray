@@ -18,14 +18,30 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconIndirect, CreatePopupMenu, DestroyIcon, DestroyMenu, GetCursorPos, GetSystemMetrics,
-    PostMessageW, SetForegroundWindow, TrackPopupMenuEx, HICON, ICONINFO, MF_SEPARATOR, MF_STRING, SM_CXSMICON,
-    TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_NULL,
+    PostMessageW, SetForegroundWindow, TrackPopupMenuEx, HICON, ICONINFO, MF_CHECKED, MF_POPUP, MF_SEPARATOR,
+    MF_STRING, SM_CXSMICON, TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_NULL,
 };
 
 pub const MENU_OPEN: u32 = 1;
 pub const MENU_REFRESH: u32 = 2;
 pub const MENU_EXIT: u32 = 3;
 pub const MENU_SETTINGS: u32 = 4;
+pub const MENU_PRIORITY_MOUSE: u32 = 10;
+pub const MENU_PRIORITY_KEYBOARD: u32 = 11;
+pub const MENU_PRIORITY_BLUETOOTH: u32 = 12;
+pub const MENU_PRIORITY_HEADSET: u32 = 13;
+pub const MENU_PRIORITY_LOWEST: u32 = 14;
+
+pub fn priority_for_menu(id: u32) -> Option<&'static str> {
+    match id {
+        MENU_PRIORITY_MOUSE => Some("mouse"),
+        MENU_PRIORITY_KEYBOARD => Some("keyboard"),
+        MENU_PRIORITY_BLUETOOTH => Some("bluetooth"),
+        MENU_PRIORITY_HEADSET => Some("headset"),
+        MENU_PRIORITY_LOWEST => Some("lowest"),
+        _ => None,
+    }
+}
 
 pub struct Tray {
     hwnd: HWND,
@@ -112,7 +128,7 @@ impl Tray {
 
 /// Shows the tray menu at the cursor and returns the chosen item (0 = none). A free function: the menu runs a modal
 /// loop, during which the app's state must stay free for the messages it dispatches.
-pub fn show_menu(hwnd: HWND) -> u32 {
+pub fn show_menu(hwnd: HWND, current_priority: &str) -> u32 {
     unsafe {
         let Ok(menu) = CreatePopupMenu() else { return 0 };
         let open = crate::win::wide(&t("tray.open"));
@@ -120,6 +136,23 @@ pub fn show_menu(hwnd: HWND) -> u32 {
         let refresh = crate::win::wide(&t("refresh"));
         let exit = crate::win::wide(&t("tray.exit"));
         let _ = AppendMenuW(menu, MF_STRING, MENU_OPEN as usize, windows::core::PCWSTR(open.as_ptr()));
+        if let Ok(priority_menu) = CreatePopupMenu() {
+            let options = [
+                (MENU_PRIORITY_MOUSE, "mouse", "tray.priority.mouse"),
+                (MENU_PRIORITY_KEYBOARD, "keyboard", "tray.priority.keyboard"),
+                (MENU_PRIORITY_BLUETOOTH, "bluetooth", "tray.priority.bluetooth"),
+                (MENU_PRIORITY_HEADSET, "headset", "tray.priority.headset"),
+                (MENU_PRIORITY_LOWEST, "lowest", "tray.priority.lowest"),
+            ];
+            for (id, value, key) in options {
+                let label = crate::win::wide(&t(key));
+                let flags = if current_priority == value { MF_STRING | MF_CHECKED } else { MF_STRING };
+                let _ = AppendMenuW(priority_menu, flags, id as usize, windows::core::PCWSTR(label.as_ptr()));
+            }
+            let priority_label = crate::win::wide(&t("tray.priority"));
+            let _ =
+                AppendMenuW(menu, MF_POPUP, priority_menu.0 as usize, windows::core::PCWSTR(priority_label.as_ptr()));
+        }
         let _ = AppendMenuW(menu, MF_STRING, MENU_SETTINGS as usize, windows::core::PCWSTR(settings.as_ptr()));
         let _ = AppendMenuW(menu, MF_STRING, MENU_REFRESH as usize, windows::core::PCWSTR(refresh.as_ptr()));
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, None);

@@ -86,6 +86,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(command(model.t("tray.open"), #selector(open), ""))
+        menu.addItem(priorityMenu())
         menu.addItem(command(model.t("settings") + "…", #selector(settings), ","))
         menu.addItem(command(model.t("refresh"), #selector(refresh), "r"))
         menu.addItem(.separator())
@@ -109,6 +110,34 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let entry = NSMenuItem(title: title, action: action, keyEquivalent: key)
         entry.target = self
         return entry
+    }
+
+    private func priorityMenu() -> NSMenuItem {
+        let root = NSMenuItem(title: model.t("tray.priority"), action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let current = model.snapshot?.settings.trayPriority ?? "mouse"
+        let options = [
+            ("mouse", "tray.priority.mouse"),
+            ("keyboard", "tray.priority.keyboard"),
+            ("bluetooth", "tray.priority.bluetooth"),
+            ("headset", "tray.priority.headset"),
+            ("lowest", "tray.priority.lowest"),
+        ]
+        for (value, key) in options {
+            let item = NSMenuItem(title: model.t(key), action: #selector(pickPriority(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = value
+            item.state = current == value ? .on : .off
+            sub.addItem(item)
+        }
+        root.submenu = sub
+        return root
+    }
+
+    @objc private func pickPriority(_ sender: NSMenuItem) {
+        if let value = sender.representedObject as? String {
+            model.set("tray_priority", value)
+        }
     }
 
     @objc private func open() {

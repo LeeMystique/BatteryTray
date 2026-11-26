@@ -100,6 +100,8 @@ pub struct AppSettings {
     pub language: String,
     /// "light", "dark", or "auto" to follow the system's mode.
     pub theme: String,
+    /// Which device kind the tray icon prefers when no device is low: "mouse", "keyboard", "bluetooth", "headset", or "lowest".
+    pub tray_priority: String,
     /// Hide disconnected / asleep (inactive) devices from the device list.
     pub hide_offline: bool,
     /// A Windows notification when a device finishes charging.
@@ -149,6 +151,7 @@ impl Default for AppSettings {
             sound_charged: SYSTEM_SOUND.into(),
             language: AUTO.into(),
             theme: AUTO.into(),
+            tray_priority: "mouse".into(),
             hide_offline: false,
             notify_charged: true,
             auto_close: true,
@@ -263,6 +266,7 @@ impl AppSettings {
                 "SoundCharged" => set(&mut s.sound_charged, v.as_str().map(str::to_string)),
                 "Language" => set(&mut s.language, v.as_str().map(str::to_string)),
                 "Theme" => set(&mut s.theme, v.as_str().map(str::to_string)),
+                "TrayPriority" => set(&mut s.tray_priority, v.as_str().map(str::to_string)),
                 "HideOffline" => set(&mut s.hide_offline, v.as_bool()),
                 "NotifyCharged" => set(&mut s.notify_charged, v.as_bool()),
                 "AutoClose" => set(&mut s.auto_close, v.as_bool()),
@@ -351,6 +355,9 @@ impl AppSettings {
         }
         self.sound = self.reminder_sounds();
         self.menu_bar_devices = self.menu_bar_devices.clamp(MENU_BAR_DEVICES.0, MENU_BAR_DEVICES.1);
+        if !matches!(self.tray_priority.as_str(), "mouse" | "keyboard" | "bluetooth" | "headset" | "lowest") {
+            self.tray_priority = "mouse".into();
+        }
         // A device has both of its own levels or none: one set alone (by hand) gets the other from the global ones
         let (low, critical) = (self.low_percent, self.critical_percent);
         for d in self.devices.values_mut() {

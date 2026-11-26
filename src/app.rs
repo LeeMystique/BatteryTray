@@ -1077,13 +1077,22 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
                 let _ = slint::invoke_from_event_loop(toggle_main);
             }
             WM_RBUTTONUP | WM_CONTEXTMENU => {
-                let chosen = tray::show_menu(hwnd);
+                let current_priority =
+                    with_app(|app| app.settings.tray_priority.clone()).unwrap_or_else(|| "mouse".into());
+                let chosen = tray::show_menu(hwnd, &current_priority);
                 later(move |app| match chosen {
                     MENU_OPEN => app.open(),
                     MENU_SETTINGS => app.open_settings(),
                     MENU_REFRESH => app.refresh_now(),
                     MENU_EXIT => app.exit(),
-                    _ => {}
+                    id => {
+                        if let Some(priority) = tray::priority_for_menu(id) {
+                            app.edit(|s| {
+                                s.tray_priority = priority.into();
+                                s.normalize();
+                            });
+                        }
+                    }
                 });
             }
             _ => {}
