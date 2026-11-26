@@ -308,6 +308,9 @@ struct GeneralSettings: View {
                     } label: {
                         Label(model.t("menubar.devices"), systemImage: "menubar.rectangle")
                     }
+                    Toggle(isOn: Binding(get: { s.settings.hideOffline }, set: { model.set("hide_offline", $0) })) {
+                        Label(model.t("hide.offline"), systemImage: "eye.slash")
+                    }
                 } header: {
                     HStack(spacing: 8) {
                         Text(model.t("menubar.header"))

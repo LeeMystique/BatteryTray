@@ -135,6 +135,7 @@ impl MainView {
         ui.set_overlay_names(s.overlay_show_names);
         ui.set_language(s.language.clone().into());
         ui.set_theme(s.theme.clone().into());
+        ui.set_hide_offline(s.hide_offline);
         ui.set_autostart_banner_dismissed(s.autostart_banner_dismissed);
         self.refresh_overlay_status(s, app.overlay.shortcut_available());
     }
@@ -348,6 +349,9 @@ fn connect(ui: &MainWindow) {
     });
     ui.on_theme_chosen(|setting| {
         with_app(|a| a.set_theme(&setting));
+    });
+    ui.on_hide_offline_changed(|on| {
+        with_app(|a| a.edit(|s| s.hide_offline = on));
     });
     ui.on_test_alert(|| {
         with_app(|a| a.show_test_alert());

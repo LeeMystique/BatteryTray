@@ -154,6 +154,7 @@ static STRINGS: &[(&str, &str, &str, &str)] = &[
     ("theme.dark", "Тёмная", "Dark", "深色"),
     // Next to a section that is new in this version; taken away in the version after it
     ("settings.new", "новое", "New", "新"),
+    ("hide.offline", "Скрывать неактивные устройства", "Hide inactive devices", "隐藏不活跃设备"),
     ("alerts.header", "Напоминания", "Reminders", "提醒"),
     ("alerts.low", "Напоминать, когда заряд ниже", "Remind me when the battery is below", "电量低于此值时提醒"),
     ("alerts.critical", "Критический уровень", "Critical level", "严重低电量"),

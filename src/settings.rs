@@ -100,6 +100,8 @@ pub struct AppSettings {
     pub language: String,
     /// "light", "dark", or "auto" to follow the system's mode.
     pub theme: String,
+    /// Hide disconnected / asleep (inactive) devices from the device list.
+    pub hide_offline: bool,
     /// A Windows notification when a device finishes charging.
     pub notify_charged: bool,
     /// The low battery reminder closes on its own after `auto_close_seconds`, as if snoozed (the default); off, it
@@ -147,6 +149,7 @@ impl Default for AppSettings {
             sound_charged: SYSTEM_SOUND.into(),
             language: AUTO.into(),
             theme: AUTO.into(),
+            hide_offline: false,
             notify_charged: true,
             auto_close: true,
             auto_close_seconds: 10,
@@ -260,6 +263,7 @@ impl AppSettings {
                 "SoundCharged" => set(&mut s.sound_charged, v.as_str().map(str::to_string)),
                 "Language" => set(&mut s.language, v.as_str().map(str::to_string)),
                 "Theme" => set(&mut s.theme, v.as_str().map(str::to_string)),
+                "HideOffline" => set(&mut s.hide_offline, v.as_bool()),
                 "NotifyCharged" => set(&mut s.notify_charged, v.as_bool()),
                 "AutoClose" => set(&mut s.auto_close, v.as_bool()),
                 "AutoCloseSeconds" => set(&mut s.auto_close_seconds, int(v)),

@@ -138,7 +138,8 @@ pub fn device_lists(rows: &[DeviceRow], s: &AppSettings, now: DateTime<Local>) -
         match block {
             Block::Pinned => lists.pinned.push(view),
             Block::Connected => lists.connected.push(view),
-            Block::Offline => lists.offline.push(view),
+            Block::Offline if !s.hide_offline => lists.offline.push(view),
+            Block::Offline => {}
             Block::Hidden => lists.hidden.push(view),
         }
     }
