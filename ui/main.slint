@@ -42,6 +42,7 @@ export component MainWindow inherits Window {
     in property <string> language;
     in property <string> theme;
     in property <string> tray-priority;
+    in property <bool> tray-battery-icon;
     in property <bool> hide-offline;
     in property <string> update-status;
     in property <string> update-checked-text;
@@ -101,6 +102,7 @@ export component MainWindow inherits Window {
     callback language-chosen(language: string);
     callback theme-chosen(theme: string);
     callback tray-priority-chosen(priority: string);
+    callback tray-battery-icon-chosen(enabled: bool);
     callback hide-offline-changed(on: bool);
     callback test-alert();
     callback open-folder();
@@ -387,6 +389,7 @@ export component MainWindow inherits Window {
                     language: root.language;
                     theme: root.theme;
                     tray-priority: root.tray-priority;
+                    tray-battery-icon: root.tray-battery-icon;
                     hide-offline: root.hide-offline;
                     update-status: root.update-status;
                     update-checked-text: root.update-checked-text;
@@ -398,6 +401,7 @@ export component MainWindow inherits Window {
                     autostart-changed(on) => { root.autostart-changed(on); }
                     language-chosen(language) => { root.language-chosen(language); }
                     theme-chosen(theme) => { root.theme-chosen(theme); }
+                    tray-battery-icon-chosen(enabled) => { root.tray-battery-icon-chosen(enabled); }
                     tray-priority-chosen(priority) => { root.tray-priority-chosen(priority); }
                     hide-offline-changed(on) => { root.hide-offline-changed(on); }
                     install-update => { root.install-update(); }

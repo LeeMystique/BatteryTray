@@ -102,6 +102,7 @@ pub struct AppSettings {
     pub theme: String,
     /// Which device kind the tray icon prefers when no device is low: "mouse", "keyboard", "bluetooth", "headset", or "lowest".
     pub tray_priority: String,
+    pub tray_battery_icon: bool,
     /// Hide disconnected / asleep (inactive) devices from the device list.
     pub hide_offline: bool,
     /// A Windows notification when a device finishes charging.
@@ -152,6 +153,7 @@ impl Default for AppSettings {
             language: AUTO.into(),
             theme: AUTO.into(),
             tray_priority: "mouse".into(),
+            tray_battery_icon: true,
             hide_offline: false,
             notify_charged: true,
             auto_close: true,
@@ -163,7 +165,7 @@ impl Default for AppSettings {
             overlay_mode: 0,
             overlay_corner: 1,
             overlay_show_names: false,
-            menu_bar_devices: 3,
+            menu_bar_devices: 1,
             last_run_version: None,
             devices: BTreeMap::new(),
             autostart_banner_dismissed: false,
@@ -267,6 +269,7 @@ impl AppSettings {
                 "Language" => set(&mut s.language, v.as_str().map(str::to_string)),
                 "Theme" => set(&mut s.theme, v.as_str().map(str::to_string)),
                 "TrayPriority" => set(&mut s.tray_priority, v.as_str().map(str::to_string)),
+                "TrayBatteryIcon" => set(&mut s.tray_battery_icon, v.as_bool()),
                 "HideOffline" => set(&mut s.hide_offline, v.as_bool()),
                 "NotifyCharged" => set(&mut s.notify_charged, v.as_bool()),
                 "AutoClose" => set(&mut s.auto_close, v.as_bool()),
@@ -713,7 +716,7 @@ mod tests {
 
     #[test]
     fn the_menu_bar_shows_one_to_five_devices() {
-        assert_eq!(AppSettings::default().menu_bar_devices, 3);
+        assert_eq!(AppSettings::default().menu_bar_devices, 1);
         for (written, read) in [(0, 1), (4, 4), (9, 5)] {
             let (mut s, clean) = AppSettings::from_value(&serde_json::json!({ "MenuBarDevices": written }));
             s.normalize();

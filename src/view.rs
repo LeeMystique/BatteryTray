@@ -295,6 +295,7 @@ pub fn update_view(u: &Status) -> UpdateView {
 pub struct TrayView {
     pub label: String,
     pub tone: Tone,
+    pub charging: bool,
     /// One line per device on the air, in the list's order; empty when no level is known
     pub lines: Vec<String>,
     /// The lines joined, or "no data"
@@ -369,12 +370,13 @@ pub fn tray_view(rows: &[DeviceRow], s: &AppSettings) -> TrayView {
             level_tone(c.level, c.charging, true, &r.id, s),
         ),
     };
+    let charging = pick.is_some_and(|(_, c)| c.charging);
     let bar = if s.menu_bar_devices <= 1 {
         pick.map(|(r, c)| bar_slot(r, c, s)).into_iter().collect()
     } else {
         bar_slots(&live, s)
     };
-    TrayView { label, tone, lines, tooltip, bar }
+    TrayView { label, tone, charging, lines, tooltip, bar }
 }
 
 /// Fills the multi-device menu bar item in device-list order, promoting low batteries into the available slots.
@@ -576,7 +578,7 @@ mod tests {
 
     #[test]
     fn the_menu_bar_shows_the_first_devices_and_one_running_out() {
-        let mut s = AppSettings::default();
+        let mut s = AppSettings { menu_bar_devices: 3, ..AppSettings::default() };
         let at = |id: &str, kind: DeviceKind, level: Option<i32>, charging: bool| {
             let mut r = row(id, kind, true);
             let c = r.current.as_mut().unwrap();
@@ -589,7 +591,7 @@ mod tests {
         };
         assert!(tray_view(&[], &s).bar.is_empty());
 
-        // Three places; fewer devices on the air, fewer shown
+        // Fewer devices on the air, fewer shown
         let headset = at("a", DeviceKind::Headset, Some(37), false);
         assert_eq!(levels(std::slice::from_ref(&headset), &s), ["37"]);
 
@@ -636,7 +638,7 @@ mod tests {
 
     #[test]
     fn tray_priority_picks_preferred_kind_when_normal() {
-        let mut s = AppSettings { menu_bar_devices: 1, ..AppSettings::default() };
+        let mut s = AppSettings::default();
         let make = |id: &str, kind: DeviceKind, level: i32, via: &str| {
             let mut r = row(id, kind, true);
             let c = r.current.as_mut().unwrap();
@@ -673,7 +675,7 @@ mod tests {
         charging_only.current.as_mut().unwrap().charging = true;
         let with_kb = [charging_only, make("kb", DeviceKind::Keyboard, 80, "USB")];
         let tray = tray_view(&with_kb, &s);
-        assert_eq!((tray.label.as_str(), tray.tone), ("⚡", Tone::Charge));
+        assert_eq!((tray.label.as_str(), tray.tone, tray.charging), ("⚡", Tone::Charge, true));
         assert_eq!(tray.bar.len(), 1);
         assert_eq!((tray.bar[0].kind, tray.bar[0].level.as_str(), tray.bar[0].power), (DeviceKind::Mouse, "", true));
     }

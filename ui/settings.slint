@@ -174,6 +174,7 @@ export component GeneralPage inherits Page {
     // "light", "dark", or "auto" to follow Windows
     in property <string> theme;
     in property <string> tray-priority;
+    in property <bool> tray-battery-icon;
     in property <bool> hide-offline;
     in property <string> update-status;
     in property <string> update-checked-text;
@@ -186,6 +187,7 @@ export component GeneralPage inherits Page {
     callback language-chosen(string);
     callback theme-chosen(string);
     callback tray-priority-chosen(string);
+    callback tray-battery-icon-chosen(bool);
     callback hide-offline-changed(bool);
     callback install-update();
     callback check-updates();
@@ -236,6 +238,18 @@ export component GeneralPage inherits Page {
                     options: [T.t("theme.auto"), T.t("theme.light"), T.t("theme.dark")];
                     current: root.theme == "light" ? 1 : root.theme == "dark" ? 2 : 0;
                     selected(i) => { root.theme-chosen(["auto", "light", "dark"][i]); }
+                }
+            }
+            Divider {}
+            ControlRow {
+                leading-glyph: "\u{E83F}";
+                text: T.t("tray.style");
+                Dropdown {
+                    min-width: 150px;
+                    label: T.t("tray.style");
+                    options: [T.t("tray.style.icon"), T.t("tray.style.number")];
+                    current: root.tray-battery-icon ? 0 : 1;
+                    selected(i) => { root.tray-battery-icon-chosen(i == 0); }
                 }
             }
             Divider {}

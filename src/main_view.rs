@@ -151,6 +151,7 @@ impl MainView {
         ui.set_overlay_names(s.overlay_show_names);
         ui.set_language(s.language.clone().into());
         ui.set_theme(s.theme.clone().into());
+        ui.set_tray_battery_icon(s.tray_battery_icon);
         ui.set_tray_priority(s.tray_priority.clone().into());
         ui.set_hide_offline(s.hide_offline);
         ui.set_autostart_banner_dismissed(s.autostart_banner_dismissed);
@@ -366,6 +367,9 @@ fn connect(ui: &MainWindow) {
     });
     ui.on_theme_chosen(|setting| {
         with_app(|a| a.set_theme(&setting));
+    });
+    ui.on_tray_battery_icon_chosen(|enabled| {
+        with_app(|a| a.edit(|s| s.tray_battery_icon = enabled));
     });
     ui.on_tray_priority_chosen(|p| {
         with_app(|a| {

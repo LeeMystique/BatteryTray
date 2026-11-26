@@ -154,6 +154,9 @@ static STRINGS: &[(&str, &str, &str, &str)] = &[
     ("theme.dark", "Тёмная", "Dark", "深色"),
     // Next to a section that is new in this version; taken away in the version after it
     ("settings.new", "новое", "New", "新"),
+    ("tray.style", "Отображение заряда", "Battery level display", "电量显示方式"),
+    ("tray.style.icon", "Значок батареи", "Battery icon", "电池图标"),
+    ("tray.style.number", "Только число", "Number only", "纯数字"),
     ("tray.priority", "Приоритет в трее", "Tray device priority", "托盘优先显示"),
     ("tray.priority.mouse", "Сначала мышь", "Mouse first", "鼠标优先"),
     ("tray.priority.keyboard", "Сначала клавиатура", "Keyboard first", "键盘优先"),

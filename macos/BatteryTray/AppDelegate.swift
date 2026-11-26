@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func snapshotChanged(_ snapshot: Snapshot?) {
         guard let snapshot else { return }
         applyTheme(snapshot.settings.theme)
-        statusItem?.update(snapshot.tray)
+        statusItem?.update(snapshot.tray, batteryIcon: snapshot.settings.trayBatteryIcon)
         overlay.apply(snapshot)
         if snapshot.lang != language {
             language = snapshot.lang

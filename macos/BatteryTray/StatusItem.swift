@@ -1,14 +1,14 @@
 import AppKit
 
-/// The menu bar item: the first devices of the list, each as its kind's symbol and its level (`MenuBarLabel`), the
-/// devices in a tooltip, and a menu with each device's level and the app's commands.
+/// The menu bar item, its device tooltip and its commands.
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let model: AppModel
-    /// The devices the item shows now: an unchanged snapshot doesn't draw it again
+    /// An unchanged snapshot doesn't draw the item again.
     private var shown: [BarSlot]?
+    private var showsBatteryIcon = true
     private var appearanceObservation: NSKeyValueObservation?
 
     init(model: AppModel) {
@@ -25,7 +25,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.behavior = []
         item.isVisible = true
         item.button?.imagePosition = .imageOnly
-        update(model.snapshot?.tray)
+        update(model.snapshot?.tray, batteryIcon: model.snapshot?.settings.trayBatteryIcon ?? true)
         // The menu bar is light or dark by the wallpaper under it: drawn again in the colors of the new one
         appearanceObservation = item.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
             Task { @MainActor in self?.draw() }
@@ -36,21 +36,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.button
     }
 
-    func update(_ tray: Tray?) {
+    func update(_ tray: Tray?, batteryIcon: Bool) {
         guard let button = item.button else { return }
         button.toolTip = tray?.tooltip
         // VoiceOver reads each device by name with its level, not the symbols
         let devices = tray?.tooltip.replacingOccurrences(of: "\n", with: ", ")
         button.setAccessibilityLabel(["BatteryTray", devices].compactMap { $0 }.joined(separator: ": "))
         let slots = tray?.bar ?? []
-        if slots != shown {
+        if slots != shown || batteryIcon != showsBatteryIcon {
             shown = slots
+            showsBatteryIcon = batteryIcon
             draw()
         }
     }
 
     private func draw() {
-        item.button?.image = MenuBarLabel.image(shown ?? [])
+        item.button?.image = MenuBarLabel.image(shown ?? [], batteryIcon: showsBatteryIcon)
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {
@@ -86,7 +87,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(command(model.t("tray.open"), #selector(open), ""))
-        menu.addItem(priorityMenu())
+        if model.snapshot?.settings.menuBarDevices == 1 {
+            menu.addItem(priorityMenu())
+        }
         menu.addItem(command(model.t("settings") + "…", #selector(settings), ","))
         menu.addItem(command(model.t("refresh"), #selector(refresh), "r"))
         menu.addItem(.separator())
@@ -157,95 +160,206 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 }
 
-/// The menu bar item's picture: each device's kind as its symbol, then its level without "%" and a lightning while it
-/// charges, in the menu bar's own text color; a level below the device's reminder or critical level in the app's
-/// orange or red, the only color in it. "--" when no device has a level. Drawn when it is shown, so its colors are the
-/// menu bar's appearance of the moment (light or dark by the wallpaper, not the windows' theme).
+/// Each device's symbol followed by its battery level in the selected style.
+/// The glyphs and battery outlines use the menu bar's appearance, and low levels color the battery fill.
 enum MenuBarLabel {
-    /// Between a symbol and its level, a level and its lightning, and two devices
-    static let symbolGap: CGFloat = 3
-    static let boltGap: CGFloat = 1
-    static let deviceGap: CGFloat = 8
+    private static let symbolGap: CGFloat = 3
+    private static let deviceGap: CGFloat = 8
 
-    /// One device, measured.
     private struct Part {
-        var symbol: NSImage
-        var level: String
-        var levelWidth: CGFloat
-        var bolt: NSImage?
-        var color: NSColor?
+        let symbol: NSImage
+        let level: NSImage
 
-        var width: CGFloat {
-            symbol.size.width + (levelWidth > 0 ? MenuBarLabel.symbolGap + levelWidth : 0)
-                + (bolt.map { MenuBarLabel.boltGap + $0.size.width } ?? 0)
-        }
+        var width: CGFloat { symbol.size.width + MenuBarLabel.symbolGap + level.size.width }
+        var height: CGFloat { max(symbol.size.height, level.size.height) }
     }
 
-    static func image(_ slots: [BarSlot]) -> NSImage {
+    static func image(_ slots: [BarSlot], batteryIcon: Bool) -> NSImage {
         // The menu bar's own size, larger with Accessibility > Display > Menu bar size
         let size = NSFont.menuBarFont(ofSize: 0).pointSize
-        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
-        let symbolSize = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
-        let boltSize = NSImage.SymbolConfiguration(pointSize: size * 0.8, weight: .semibold)
-        let measure = { (text: String) in (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up) }
+        let symbolSize = NSImage.SymbolConfiguration(pointSize: size * 1.22, weight: .medium)
         let parts: [Part] = slots.compactMap { slot in
             guard let glyph = NSImage(systemSymbolName: symbol(slot.kind), accessibilityDescription: nil)?
                 .withSymbolConfiguration(symbolSize)
             else { return nil }
-            let low = slot.tone == "warn" || slot.tone == "bad"
-            return Part(
-                symbol: glyph,
-                level: slot.level,
-                levelWidth: slot.level.isEmpty ? 0 : measure(slot.level),
-                bolt: slot.power
-                    ? NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?.withSymbolConfiguration(boltSize)
-                    : nil,
-                color: low ? Tone.nsColor(slot.tone) : nil
-            )
+            let level = batteryIcon ? batteryImage(for: slot) : numberImage(for: slot, size: size)
+            return Part(symbol: glyph, level: level)
         }
-        let textHeight = (font.ascender - font.descender).rounded(.up)
-        if parts.isEmpty {
-            let none = "--"
-            return NSImage(size: NSSize(width: measure(none), height: textHeight), flipped: false) { _ in
+        guard let height = parts.map(\.height).max() else {
+            let text = "--" as NSString
+            let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
+            let width = text.size(withAttributes: [.font: font]).width.rounded(.up)
+            let height = (font.ascender - font.descender).rounded(.up)
+            return NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
                 let grey = Tone.nsColor("offline").usingColorSpace(.sRGB) ?? .secondaryLabelColor
-                (none as NSString).draw(at: .zero, withAttributes: [.font: font, .foregroundColor: grey])
+                text.draw(at: .zero, withAttributes: [.font: font, .foregroundColor: grey])
                 return true
             }
         }
-        let height = max(textHeight, parts.map(\.symbol.size.height).max() ?? 0)
         let width = parts.map(\.width).reduce(0, +) + deviceGap * CGFloat(parts.count - 1)
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
-            // The colors as they are in the appearance the image is being drawn in
-            let resolve = { (color: NSColor) in color.usingColorSpace(.sRGB) ?? color }
-            let label = resolve(.labelColor)
+            let label = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
             let tint = NSImage.SymbolConfiguration(paletteColors: [label])
             var x: CGFloat = 0
             for part in parts {
-                let color = part.color.map(resolve) ?? label
                 let symbol = part.symbol.withSymbolConfiguration(symbolSize.applying(tint)) ?? part.symbol
-                symbol.draw(in: NSRect(x: x, y: ((height - symbol.size.height) / 2).rounded(),
-                                       width: symbol.size.width, height: symbol.size.height))
-                x += symbol.size.width
-                if part.levelWidth > 0 {
-                    x += symbolGap
-                    (part.level as NSString).draw(at: NSPoint(x: x, y: ((height - textHeight) / 2).rounded()),
-                                                  withAttributes: [.font: font, .foregroundColor: color])
-                    x += part.levelWidth
-                }
-                if let bolt = part.bolt {
-                    x += boltGap
-                    let tinted = bolt.withSymbolConfiguration(boltSize.applying(tint)) ?? bolt
-                    tinted.draw(in: NSRect(x: x, y: ((height - tinted.size.height) / 2).rounded(),
-                                           width: tinted.size.width, height: tinted.size.height))
-                    x += tinted.size.width
-                }
-                x += deviceGap
+                symbol.draw(at: NSPoint(x: x, y: ((height - symbol.size.height) / 2).rounded()),
+                            from: .zero, operation: .sourceOver, fraction: 1)
+                let levelX = x + part.symbol.size.width + symbolGap
+                part.level.draw(at: NSPoint(x: levelX, y: ((height - part.level.size.height) / 2).rounded()),
+                                from: .zero, operation: .sourceOver, fraction: 1)
+                x += part.width + deviceGap
             }
             return true
         }
         image.isTemplate = false
         image.accessibilityDescription = "BatteryTray"
         return image
+    }
+
+    private static func numberImage(for slot: BarSlot, size: CGFloat) -> NSImage {
+        let label = slot.level as NSString
+        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
+        let textWidth = label.size(withAttributes: [.font: font]).width.rounded(.up)
+        let textHeight = (font.ascender - font.descender).rounded(.up)
+        let bolt = slot.power
+            ? NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size * 0.8, weight: .semibold))
+            : nil
+        let boltX = textWidth + (textWidth > 0 ? 1 : 0)
+        let width = bolt.map { boltX + $0.size.width } ?? textWidth
+        let height = max(textHeight, bolt?.size.height ?? 0)
+        return NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
+            let color = slot.tone == "warn" || slot.tone == "bad" ? Tone.nsColor(slot.tone) : NSColor.labelColor
+            label.draw(at: NSPoint(x: 0, y: ((height - textHeight) / 2).rounded()),
+                       withAttributes: [.font: font, .foregroundColor: color])
+            if let bolt {
+                Self.tintedSymbol(bolt, color: .labelColor).draw(at: NSPoint(x: boltX, y: ((height - bolt.size.height) / 2).rounded()),
+                                                               from: .zero, operation: .sourceOver, fraction: 1)
+            }
+            return true
+        }
+    }
+
+    /// Draws a compact horizontal battery menu bar icon with the percentage number inside (or a centered bolt when
+    /// charging without a readable percentage), proportional fill, and a top-right corner bolt when charging.
+    private static func batteryImage(for slot: BarSlot) -> NSImage {
+        let label = slot.level
+        let level = Int(label.first == "≈" ? label.dropFirst() : label[...])
+        let isCharging = slot.power
+        let foregroundColor = NSColor.labelColor
+        let fillColor = slot.tone == "warn" || slot.tone == "bad" ? Tone.nsColor(slot.tone) : foregroundColor
+        let boltInside = isCharging && level == nil
+        let showsCornerBolt = isCharging && !boltInside
+        let boltPointSize: CGFloat = boltInside ? 9.5 : 6.8
+        let boltSymbol = isCharging
+            ? NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: boltPointSize, weight: .bold))
+            : nil
+        let size = NSSize(width: 27, height: 18)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let bodyRect = NSRect(x: 1.0, y: 2.5, width: 22.0, height: 13.0)
+            let outline = NSBezierPath(roundedRect: bodyRect.insetBy(dx: 0.6, dy: 0.6), xRadius: 2.6, yRadius: 2.6)
+            outline.lineWidth = 1.2
+            foregroundColor.withAlphaComponent(0.9).setStroke()
+            outline.stroke()
+
+            let capRect = NSRect(x: bodyRect.maxX + 1.0, y: (size.height - 4.6) / 2.0, width: 1.5, height: 4.6)
+            foregroundColor.withAlphaComponent(0.9).setFill()
+            NSBezierPath(roundedRect: capRect, xRadius: 0.75, yRadius: 0.75).fill()
+
+            let innerRect = bodyRect.insetBy(dx: 1.8, dy: 1.8)
+            let fraction = level.map { CGFloat(max(0, min(100, $0))) / 100.0 } ?? 0
+            let fillWidth = fraction > 0 ? max(2.0, innerRect.width * fraction) : 0
+
+            if boltInside, let boltSymbol {
+                let tinted = Self.tintedSymbol(boltSymbol, color: foregroundColor)
+                let boltRect = NSRect(
+                    x: bodyRect.midX - boltSymbol.size.width / 2.0,
+                    y: bodyRect.midY - boltSymbol.size.height / 2.0,
+                    width: boltSymbol.size.width,
+                    height: boltSymbol.size.height
+                )
+                tinted.draw(in: boltRect)
+                return true
+            }
+
+            let fontSize: CGFloat
+            switch label.count {
+            case 4...: fontSize = 7.0
+            case 3: fontSize = 7.8
+            default: fontSize = 9.0
+            }
+            let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
+            let textSize = (label as NSString).size(withAttributes: [.font: font])
+            let textPoint = NSPoint(
+                x: bodyRect.midX - textSize.width / 2.0 - (showsCornerBolt ? 0.4 : 0),
+                y: bodyRect.midY - textSize.height / 2.0
+            )
+
+            let innerClip = NSBezierPath(roundedRect: innerRect, xRadius: 1.3, yRadius: 1.3)
+            NSGraphicsContext.saveGraphicsState()
+            innerClip.addClip()
+
+            if fillWidth > 0 {
+                let fillRect = NSRect(x: innerRect.minX, y: innerRect.minY, width: fillWidth, height: innerRect.height)
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(rect: fillRect).addClip()
+                fillColor.setFill()
+                fillRect.fill()
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                (label as NSString).draw(at: textPoint, withAttributes: [.font: font, .foregroundColor: NSColor.black])
+                NSGraphicsContext.restoreGraphicsState()
+            }
+
+            if fillWidth < innerRect.width {
+                let unfilledRect = NSRect(
+                    x: innerRect.minX + fillWidth,
+                    y: innerRect.minY,
+                    width: innerRect.width - fillWidth,
+                    height: innerRect.height
+                )
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(rect: unfilledRect).addClip()
+                (label as NSString).draw(at: textPoint, withAttributes: [.font: font, .foregroundColor: foregroundColor])
+                NSGraphicsContext.restoreGraphicsState()
+            }
+
+            NSGraphicsContext.restoreGraphicsState()
+
+            if showsCornerBolt, let boltSymbol {
+                let boltRect = NSRect(
+                    x: min(size.width - boltSymbol.size.width - 0.5, bodyRect.maxX - boltSymbol.size.width * 0.45),
+                    y: size.height - boltSymbol.size.height - 0.6,
+                    width: boltSymbol.size.width,
+                    height: boltSymbol.size.height
+                )
+                // True alpha cutout (.destinationOut) around the bolt so the menu bar background shows through.
+                let gap: CGFloat = 0.75
+                for (dx, dy) in [(-gap, 0), (gap, 0), (0, -gap), (0, gap), (-gap, -gap), (gap, -gap), (-gap, gap), (gap, gap)] {
+                    boltSymbol.draw(
+                        in: boltRect.offsetBy(dx: dx, dy: dy),
+                        from: .zero,
+                        operation: .destinationOut,
+                        fraction: 1.0
+                    )
+                }
+
+                Self.tintedSymbol(boltSymbol, color: foregroundColor).draw(in: boltRect)
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    private static func tintedSymbol(_ symbol: NSImage, color: NSColor) -> NSImage {
+        NSImage(size: symbol.size, flipped: false) { rect in
+            color.setFill()
+            rect.fill()
+            symbol.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1.0)
+            return true
+        }
     }
 }
 

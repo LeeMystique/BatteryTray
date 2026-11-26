@@ -902,7 +902,7 @@ impl App {
         self.tooltip = tray.tooltip;
         let tooltip = self.tooltip.clone();
         if let Some(tray_icon) = &mut self.tray {
-            tray_icon.update(&tray.label, tray.tone.rgb(theme::current().taskbar_light), &tooltip);
+            tray_icon.update(&tray.label, tray.tone, tray.charging, &tooltip, self.settings.tray_battery_icon);
         }
     }
 
