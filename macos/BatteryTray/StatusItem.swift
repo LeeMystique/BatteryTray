@@ -259,8 +259,12 @@ enum MenuBarLabel {
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: boltPointSize, weight: .bold))
             : nil
         let size = NSSize(width: 27, height: 18)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let bodyRect = NSRect(x: 1.0, y: 2.5, width: 22.0, height: 13.0)
+        let bodyRect = NSRect(x: 1.0, y: 2.5, width: 22.0, height: 13.0)
+        let innerRect = bodyRect.insetBy(dx: 1.8, dy: 1.8)
+        let percent = min(max(level ?? 0, 0), 100)
+        let fraction = CGFloat(percent) / 100.0
+        let fillWidth: CGFloat = fraction > 0 ? max(2.0, innerRect.width * fraction) : 0
+        let draw: (NSRect) -> Bool = { _ in
             let outline = NSBezierPath(roundedRect: bodyRect.insetBy(dx: 0.6, dy: 0.6), xRadius: 2.6, yRadius: 2.6)
             outline.lineWidth = 1.2
             foregroundColor.withAlphaComponent(0.9).setStroke()
@@ -269,10 +273,6 @@ enum MenuBarLabel {
             let capRect = NSRect(x: bodyRect.maxX + 1.0, y: (size.height - 4.6) / 2.0, width: 1.5, height: 4.6)
             foregroundColor.withAlphaComponent(0.9).setFill()
             NSBezierPath(roundedRect: capRect, xRadius: 0.75, yRadius: 0.75).fill()
-
-            let innerRect = bodyRect.insetBy(dx: 1.8, dy: 1.8)
-            let fraction = level.map { CGFloat(max(0, min(100, $0))) / 100.0 } ?? 0
-            let fillWidth = fraction > 0 ? max(2.0, innerRect.width * fraction) : 0
 
             if boltInside, let boltSymbol {
                 let tinted = Self.tintedSymbol(boltSymbol, color: foregroundColor)
@@ -294,10 +294,10 @@ enum MenuBarLabel {
             }
             let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
             let textSize = (label as NSString).size(withAttributes: [.font: font])
-            let textPoint = NSPoint(
-                x: bodyRect.midX - textSize.width / 2.0 - (showsCornerBolt ? 0.4 : 0),
-                y: bodyRect.midY - textSize.height / 2.0
-            )
+            let textShift: CGFloat = showsCornerBolt ? 0.4 : 0
+            let textX = bodyRect.midX - textSize.width / 2.0 - textShift
+            let textY = bodyRect.midY - textSize.height / 2.0
+            let textPoint = NSPoint(x: textX, y: textY)
 
             let innerClip = NSBezierPath(roundedRect: innerRect, xRadius: 1.3, yRadius: 1.3)
             NSGraphicsContext.saveGraphicsState()
@@ -330,15 +330,19 @@ enum MenuBarLabel {
             NSGraphicsContext.restoreGraphicsState()
 
             if showsCornerBolt, let boltSymbol {
-                let boltRect = NSRect(
-                    x: min(size.width - boltSymbol.size.width - 0.5, bodyRect.maxX - boltSymbol.size.width * 0.45),
-                    y: size.height - boltSymbol.size.height - 0.6,
-                    width: boltSymbol.size.width,
-                    height: boltSymbol.size.height
-                )
+                let boltSize = boltSymbol.size
+                let rightEdgeX = size.width - boltSize.width - 0.5
+                let bodyEdgeX = bodyRect.maxX - boltSize.width * 0.45
+                let boltX = min(rightEdgeX, bodyEdgeX)
+                let boltY = size.height - boltSize.height - 0.6
+                let boltRect = NSRect(x: boltX, y: boltY, width: boltSize.width, height: boltSize.height)
                 // True alpha cutout (.destinationOut) around the bolt so the menu bar background shows through.
                 let gap: CGFloat = 0.75
-                for (dx, dy) in [(-gap, 0), (gap, 0), (0, -gap), (0, gap), (-gap, -gap), (gap, -gap), (-gap, gap), (gap, gap)] {
+                let offsets: [(CGFloat, CGFloat)] = [
+                    (-gap, 0), (gap, 0), (0, -gap), (0, gap),
+                    (-gap, -gap), (gap, -gap), (-gap, gap), (gap, gap),
+                ]
+                for (dx, dy) in offsets {
                     boltSymbol.draw(
                         in: boltRect.offsetBy(dx: dx, dy: dy),
                         from: .zero,
@@ -351,6 +355,7 @@ enum MenuBarLabel {
             }
             return true
         }
+        let image = NSImage(size: size, flipped: false, drawingHandler: draw)
         image.isTemplate = false
         return image
     }
